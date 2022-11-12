@@ -57,8 +57,8 @@ pub trait AbstractStateMachine {
     /// This means that pre-conditions that are hard to satisfy might slow down
     /// the test or even fail by exceeding the maximum rejection count.
     fn preconditions(
-        #[allow(unused_variables)] state: &Self::State,
-        #[allow(unused_variables)] transition: &Self::Transition,
+        _state: &Self::State,
+        _transition: &Self::Transition,
     ) -> bool {
         true
     }
@@ -103,13 +103,7 @@ pub trait AbstractStateMachine {
 ///
 /// For `complicate`, we attempt to undo the last shrink operation, if there was
 /// any.
-pub struct Sequential<
-    State: Clone + Debug,
-    // Debug required by Strategy::Value
-    Transition: Clone + Debug,
-    StateStrategy: Strategy<Value = State>,
-    TransitionStrategy: Strategy<Value = Transition>,
-> {
+pub struct Sequential<State, Transition, StateStrategy, TransitionStrategy> {
     size: SizeRange,
     init_state: fn() -> StateStrategy,
     preconditions: fn(state: &State, transition: &Transition) -> bool,
@@ -117,12 +111,7 @@ pub struct Sequential<
     next: fn(state: State, transition: &Transition) -> State,
 }
 
-impl<
-        State: Clone + Debug,
-        Transition: Clone + Debug,
-        StateStrategy: Strategy<Value = State>,
-        TransitionStrategy: Strategy<Value = Transition>,
-    > Debug
+impl<State, Transition, StateStrategy, TransitionStrategy> Debug
     for Sequential<State, Transition, StateStrategy, TransitionStrategy>
 {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -146,7 +135,7 @@ impl<
         StateStrategy::Tree,
         TransitionStrategy::Tree,
     >;
-    type Value = (State, Vec<TransitionStrategy::Value>);
+    type Value = (State, Vec<Transition>);
 
     fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
         // Generate the initial state value tree
@@ -230,17 +219,18 @@ use TransitionState::*;
 
 /// The generated value tree for a sequential state machine.
 pub struct SequentialValueTree<
-    State: Clone + Debug,
-    Transition: Clone + Debug,
-    StateValueTree: ValueTree<Value = State>,
-    TransitionValueTree: ValueTree<Value = Transition>,
+    State,
+    Transition,
+    StateValueTree,
+    TransitionValueTree,
 > {
     /// The initial state value tree
     initial_state: StateValueTree,
     /// Can the `initial_state` be shrunk any further?
     is_initial_state_shrinkable: bool,
     /// The last initial state that has been accepted by the pre-conditions.
-    /// We have to store this every time before attempt to shrink
+    /// We have to store this every time before attempt to shrink to be able
+    /// to back to it in case the shrinking is rejected.
     last_valid_initial_state: State,
     /// The pre-conditions predicate
     preconditions: fn(&State, &Transition) -> bool,
@@ -411,9 +401,9 @@ impl<
         let transitions = self.current_transitions_at(ix);
         let mut state = self.last_valid_initial_state.clone();
         for transition in transitions.iter() {
-            let current_acceptable = (&self.preconditions)(&state, transition);
+            let current_acceptable = (self.preconditions)(&state, transition);
             if current_acceptable {
-                state = (&self.next)(state, transition);
+                state = (self.next)(state, transition);
             } else {
                 return false;
             }

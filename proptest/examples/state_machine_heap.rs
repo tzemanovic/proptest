@@ -132,7 +132,6 @@ impl AbstractStateMachine for HeapStateMachine {
         match transition {
             Transition::Pop => {
                 state.pop();
-                ()
             }
             Transition::Push(value) => state.push(*value),
         }
