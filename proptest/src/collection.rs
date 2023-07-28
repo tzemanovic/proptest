@@ -51,7 +51,7 @@ impl Default for SizeRange {
     /// Constructs a `SizeRange` equivalent to `size_range(0..PROPTEST_MAX_DEFAULT_SIZE_RANGE)`.
     /// The max can be set with the `PROPTEST_MAX_DEFAULT_SIZE_RANGE` env var, which defaults to `100`.
     fn default() -> Self {
-        size_range(0..Config::default().max_default_size_range)
+        size_range(0..max_default_size_range())
     }
 }
 

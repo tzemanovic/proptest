@@ -55,31 +55,6 @@ const DISABLE_FAILURE_PERSISTENCE: &str =
 /// Without the `std` feature this function returns config unchanged.
 #[cfg(feature = "std")]
 pub fn contextualize_config(mut result: Config) -> Config {
-    fn parse_or_warn<T: FromStr + fmt::Display>(
-        src: &OsString,
-        dst: &mut T,
-        typ: &str,
-        var: &str,
-    ) {
-        if let Some(src) = src.to_str() {
-            if let Ok(value) = src.parse() {
-                *dst = value;
-            } else {
-                eprintln!(
-                    "proptest: The env-var {}={} can't be parsed as {}, \
-                     using default of {}.",
-                    var, src, typ, *dst
-                );
-            }
-        } else {
-            eprintln!(
-                "proptest: The env-var {} is not valid, using \
-                 default of {}.",
-                var, *dst
-            );
-        }
-    }
-
     if result.failure_persistence.is_none() {
         result.failure_persistence =
             Some(Box::new(FileFailurePersistence::default()));
@@ -125,11 +100,9 @@ pub fn contextualize_config(mut result: Config) -> Config {
                 "u32",
                 MAX_SHRINK_ITERS,
             ),
-            MAX_DEFAULT_SIZE_RANGE => parse_or_warn(
+            MAX_DEFAULT_SIZE_RANGE => max_default_size_range_from_env(
                 &value,
                 &mut result.max_default_size_range,
-                "usize",
-                MAX_DEFAULT_SIZE_RANGE,
             ),
             VERBOSE => {
                 parse_or_warn(&value, &mut result.verbose, "u32", VERBOSE)
@@ -151,6 +124,33 @@ pub fn contextualize_config(mut result: Config) -> Config {
     }
 
     result
+}
+
+/// A helper to `contextualize_config` parsing values from env vars.
+#[cfg(feature = "std")]
+fn parse_or_warn<T: FromStr + fmt::Display>(
+    src: &OsString,
+    dst: &mut T,
+    typ: &str,
+    var: &str,
+) {
+    if let Some(src) = src.to_str() {
+        if let Ok(value) = src.parse() {
+            *dst = value;
+        } else {
+            eprintln!(
+                "proptest: The env-var {}={} can't be parsed as {}, \
+                     using default of {}.",
+                var, src, typ, *dst
+            );
+        }
+    } else {
+        eprintln!(
+            "proptest: The env-var {} is not valid, using \
+                 default of {}.",
+            var, *dst
+        );
+    }
 }
 
 /// Without the `std` feature this function returns config unchanged.
@@ -497,6 +497,8 @@ impl Config {
     }
 }
 
+const DEFAULT_MAX_DEFAULT_SIZE_RANGE: usize = 100;
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -514,7 +516,7 @@ impl Default for Config {
             #[cfg(feature = "std")]
             max_shrink_time: 0,
             max_shrink_iters: u32::MAX,
-            max_default_size_range: 100,
+            max_default_size_range: DEFAULT_MAX_DEFAULT_SIZE_RANGE,
             result_cache: noop_result_cache,
             #[cfg(feature = "std")]
             verbose: 0,
@@ -522,4 +524,29 @@ impl Default for Config {
             _non_exhaustive: (),
         }
     }
+}
+
+/// The default maximum size to `proptest::collection::SizeRange`. The default
+/// strategy for collections (like `Vec`) use collections in the range of
+/// `0..max_default_size_range`.
+///
+/// The default is `100` which can be overridden by setting the
+/// `PROPTEST_MAX_DEFAULT_SIZE_RANGE` environment variable. (The variable
+/// is only considered when the `std` feature is enabled, which it is by
+/// default.)
+pub fn max_default_size_range() -> usize {
+    let mut default = DEFAULT_MAX_DEFAULT_SIZE_RANGE;
+    #[cfg(feature = "std")]
+    if let Some(value) = env::var_os(MAX_DEFAULT_SIZE_RANGE) {
+        max_default_size_range_from_env(&value, &mut default);
+    }
+    default
+}
+
+#[cfg(feature = "std")]
+fn max_default_size_range_from_env<T: FromStr + fmt::Display>(
+    src: &OsString,
+    dst: &mut T,
+) {
+    parse_or_warn(src, dst, "usize", MAX_DEFAULT_SIZE_RANGE)
 }
