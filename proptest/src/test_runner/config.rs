@@ -80,8 +80,10 @@ pub fn contextualize_config(mut result: Config) -> Config {
         }
     }
 
-    result.failure_persistence =
-        Some(Box::new(FileFailurePersistence::default()));
+    if result.failure_persistence.is_none() {
+        result.failure_persistence =
+            Some(Box::new(FileFailurePersistence::default()));
+    }
     for (var, value) in
         env::vars_os().filter_map(|(k, v)| k.into_string().ok().map(|k| (k, v)))
     {
