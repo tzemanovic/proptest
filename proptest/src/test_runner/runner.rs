@@ -337,6 +337,7 @@ impl TestRunner {
 
     /// Create a fresh `TestRunner` with the given configuration and RNG.
     pub fn new_with_rng(config: Config, rng: TestRng) -> Self {
+        let config = contextualize_config(config);
         TestRunner {
             config: config,
             successes: 0,
